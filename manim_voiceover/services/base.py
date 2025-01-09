@@ -4,6 +4,7 @@ import os
 import json
 import sys
 import hashlib
+import fcntl
 from pathlib import Path
 from manim import config, logger
 from slugify import slugify
@@ -18,23 +19,24 @@ from manim_voiceover.helper import (
 )
 from manim_voiceover.modify_audio import adjust_speed
 from manim_voiceover.tracker import AUDIO_OFFSET_RESOLUTION
-from openai import OpenAI
+from llm_config import openai_client
 
 def timestamps_to_word_boundaries(segments):
     word_boundaries = []
     current_text_offset = 0
     for segment in segments:
         for word in segment["words"]:
+            # Handle the new TranscriptionWord object format
             word_boundaries.append(
                 {
-                    "audio_offset": int(word["start"] * AUDIO_OFFSET_RESOLUTION),
+                    "audio_offset": int(float(word.start) * AUDIO_OFFSET_RESOLUTION),
                     "text_offset": current_text_offset,
-                    "word_length": len(word["word"]),
-                    "text": word["word"],
+                    "word_length": len(word.word),
+                    "text": word.word,
                     "boundary_type": "Word",
                 }
             )
-            current_text_offset += len(word["word"])
+            current_text_offset += len(word.word)
     return word_boundaries
 
 
@@ -98,6 +100,7 @@ class SpeechService(ABC):
             print(f"Transcription: {transcription_result.text}")
             logger.info(f"Transcription: {transcription_result.text}")
             
+            # Create segments with the new format
             segments = [{"words": transcription_result.words}]
             word_boundaries = timestamps_to_word_boundaries(segments)
             dict_["word_boundaries"] = word_boundaries
@@ -140,7 +143,7 @@ class SpeechService(ABC):
         """
         if model != self.transcription_model:
             if model is not None:
-                self.openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+                self.openai_client = openai_client
                 self.transcription_model = "whisper-1"
             else:
                 self.openai_client = None
@@ -176,14 +179,45 @@ class SpeechService(ABC):
         raise NotImplementedError
 
     def get_cached_result(self, input_data, cache_dir):
-        json_path = os.path.join(cache_dir / DEFAULT_VOICEOVER_CACHE_JSON_FILENAME)
-        if os.path.exists(json_path):
-            json_data = json.load(open(json_path, "r"))
-            for entry in json_data:
-                if entry["input_data"] == input_data:
-                    return entry
+        json_path = Path(cache_dir) / DEFAULT_VOICEOVER_CACHE_JSON_FILENAME
+        if json_path.exists():
+            with open(json_path, "r") as f:
+                fcntl.flock(f, fcntl.LOCK_SH)  # Shared lock for reading
+                try:
+                    # Read the file content
+                    content = f.read()
+                    # Try to parse the JSON, if it fails, try to recover
+                    try:
+                        json_data = json.loads(content)
+                    except json.JSONDecodeError:
+                        # If JSON is invalid, try to recover valid entries
+                        json_data = self.recover_json(content)
+                    
+                    if isinstance(json_data, list):
+                        for entry in json_data:
+                            if entry.get("input_data") == input_data:
+                                return entry
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)  # Release the lock
         return None
 
+    def recover_json(self, content):
+        # Split the content into lines
+        lines = content.split('\n')
+        recovered_data = []
+        current_object = ''
+        for line in lines:
+            current_object += line
+            try:
+                # Try to parse the current object
+                obj = json.loads(current_object)
+                recovered_data.append(obj)
+                current_object = ''
+            except json.JSONDecodeError:
+                # If it fails, continue to the next line
+                continue
+        return recovered_data
+    
     def audio_callback(self, audio_path: str, data: dict, **kwargs):
         """Callback function for when the audio file is ready.
         Override this method to do something with the audio file, e.g. noise reduction.

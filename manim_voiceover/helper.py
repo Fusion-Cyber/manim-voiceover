@@ -9,7 +9,7 @@ import textwrap
 from pydub import AudioSegment
 from pathlib import Path
 from manim import logger
-
+import fcntl
 
 def chunks(lst: list, n: int):
     """Yield successive n-sized chunks from lst."""
@@ -101,23 +101,28 @@ def trim_silence(
 
 
 def append_to_json_file(json_file: str, data: dict):
-    """Append data to json file"""
+    """Append data to json file with file locking"""
     if not os.path.exists(json_file):
         with open(json_file, "w") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
             json.dump([data], f, indent=2)
+            fcntl.flock(f, fcntl.LOCK_UN)
         return
 
-    with open(json_file, "r") as f:
-        json_data = json.load(f)
+    with open(json_file, "r+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            json_data = json.load(f)
+            if not isinstance(json_data, list):
+                raise ValueError("JSON file should be a list")
 
-    if not isinstance(json_data, list):
-        raise ValueError("JSON file should be a list")
-
-    json_data.append(data)
-    with open(json_file, "w") as f:
-        json.dump(json_data, f, indent=2)
+            json_data.append(data)
+            f.seek(0)
+            f.truncate()
+            json.dump(json_data, f, indent=2)
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
     return
-
 
 def prompt_ask_missing_package(target_module: str, package_name: str):
     try:
