@@ -19,24 +19,23 @@ from manim_voiceover.helper import (
 )
 from manim_voiceover.modify_audio import adjust_speed
 from manim_voiceover.tracker import AUDIO_OFFSET_RESOLUTION
-from llm_config import openai_client
+from openai import OpenAI
 
 def timestamps_to_word_boundaries(segments):
     word_boundaries = []
     current_text_offset = 0
     for segment in segments:
         for word in segment["words"]:
-            # Handle the new TranscriptionWord object format
             word_boundaries.append(
                 {
-                    "audio_offset": int(float(word.start) * AUDIO_OFFSET_RESOLUTION),
+                    "audio_offset": int(word["start"] * AUDIO_OFFSET_RESOLUTION),
                     "text_offset": current_text_offset,
-                    "word_length": len(word.word),
-                    "text": word.word,
+                    "word_length": len(word["word"]),
+                    "text": word["word"],
                     "boundary_type": "Word",
                 }
             )
-            current_text_offset += len(word.word)
+            current_text_offset += len(word["word"])
     return word_boundaries
 
 
@@ -100,7 +99,6 @@ class SpeechService(ABC):
             print(f"Transcription: {transcription_result.text}")
             logger.info(f"Transcription: {transcription_result.text}")
             
-            # Create segments with the new format
             segments = [{"words": transcription_result.words}]
             word_boundaries = timestamps_to_word_boundaries(segments)
             dict_["word_boundaries"] = word_boundaries
@@ -143,7 +141,7 @@ class SpeechService(ABC):
         """
         if model != self.transcription_model:
             if model is not None:
-                self.openai_client = openai_client
+                self.openai_client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
                 self.transcription_model = "whisper-1"
             else:
                 self.openai_client = None
