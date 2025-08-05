@@ -26,24 +26,16 @@ def timestamps_to_word_boundaries(segments):
     current_text_offset = 0
     for segment in segments:
         for word in segment["words"]:
-            # Handle both dict-like objects and TranscriptionWord objects
-            if hasattr(word, 'start'):
-                start_time = word.start
-                word_text = word.word
-            else:
-                start_time = word["start"]
-                word_text = word["word"]
-            
             word_boundaries.append(
                 {
-                    "audio_offset": int(start_time * AUDIO_OFFSET_RESOLUTION),
+                    "audio_offset": int(word["start"] * AUDIO_OFFSET_RESOLUTION),
                     "text_offset": current_text_offset,
-                    "word_length": len(word_text),
-                    "text": word_text,
+                    "word_length": len(word["word"]),
+                    "text": word["word"],
                     "boundary_type": "Word",
                 }
             )
-            current_text_offset += len(word_text)
+            current_text_offset += len(word["word"])
     return word_boundaries
 
 
