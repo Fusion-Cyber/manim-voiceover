@@ -86,7 +86,7 @@ class SpeechService(ABC):
         original_audio = dict_["original_audio"]
 
         
-        if "word_boundaries" not in dict_ and self.openai_client is not None:
+        if "word_boundaries" not in dict_ and hasattr(self, 'openai_client') and self.openai_client is not None:
             with open(str(Path(self.cache_dir) / original_audio), "rb") as audio_file:
                 transcription_result = self.openai_client.audio.transcriptions.create(
                     file=audio_file,
