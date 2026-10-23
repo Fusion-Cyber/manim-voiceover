@@ -92,7 +92,7 @@ all = [
 [tool.poetry.group.dev.dependencies]
 Pygments = "^2.13.0"
 pytest-cov = "^3.0.0"
-pytest = "^6.0"
+pytest = "^7.0"  # anyio 4.14+ (security floor below) ships a pytest plugin that needs pytest 7
 pylint = "^2.12.2"
 Sphinx = "^5"
 sphinx-copybutton = "^0.4.0"
@@ -112,6 +112,22 @@ psutil-wheels = { version = "5.8.0", python = ">=3.10" }
 psutil = { version = "^5.8.0", python = "<3.10" }
 sphinxcontrib-video = "^0.0.1.dev3"
 sphinx-sitemap = "^2.2.1"
+# Security floors for transitive deps in the dev/CI lock (Oct 2026 advisories).
+# The fixed releases need a newer Python than the project's minimum (3.8), so
+# each is split by Python version; older interpreters keep the newest release
+# they support. Dev group only, so this does not change the published metadata.
+pillow = [{ version = ">=13.0.0", python = ">=3.11" }, { version = "*", python = "<3.11" }]
+urllib3 = [{ version = ">=2.8.0", python = ">=3.10" }, { version = "*", python = "<3.10" }]
+anyio = [{ version = ">=4.14.2", python = ">=3.10" }, { version = "*", python = "<3.10" }]
+fsspec = [{ version = ">=2026.6.0", python = ">=3.10" }, { version = "*", python = "<3.10" }]
+pyjwt = [{ version = ">=2.15.0", extras = ["crypto"], python = ">=3.9" }, { version = "*", extras = ["crypto"], python = "<3.9" }]
+virtualenv = [{ version = ">=21.14.9", python = ">=3.9" }, { version = "*", python = "<3.9" }]
+# virtualenv 21 needs these at versions that require Python >=3.9; Poetry 1.x
+# only resolves that when they are split the same way.
+packaging = [{ version = ">=26.3", python = ">=3.9" }, { version = "*", python = "<3.9" }]
+typing-extensions = [{ version = ">=4.16", python = ">=3.9" }, { version = "*", python = "<3.9" }]
+platformdirs = [{ version = ">=4.4", python = ">=3.9" }, { version = "*", python = "<3.9" }]
+filelock = [{ version = ">=3.24.2", python = ">=3.10" }, { version = "3.19.1", python = ">=3.9,<3.10" }, { version = "*", python = "<3.9" }]
 
 
 [tool.poetry.plugins."manim.plugins"]
